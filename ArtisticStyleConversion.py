@@ -6,11 +6,10 @@
 #print('result prefix : ')
 #result_prefix = input()
 #print('Transform from ' + base_image_path + ' into style ' + style_image_path + ' and save as ' + result_prefix)
-#weights_path = 'vgg16_weights.h5'
 
-base_image_path = 'base.jpg'
-style_image_path = 'style.jpg'
-result_prefix = 'res6'
+base_image_path = 'base/base1.jpg'
+style_image_path = 'style/style1.jpg'
+result_prefix = 'res/res'
 
 from scipy.misc import imread, imresize
 import numpy as np
@@ -28,8 +27,6 @@ def preprocess_image(image_path):
     img[:, :, 0] -= 103.939
     img[:, :, 1] -= 116.779
     img[:, :, 2] -= 123.68
-	# (row-col-ch)->(ch-row-col)
-	#g.transpose((2, 0, 1))
 	# add axis to use VGG
     img = np.expand_dims(img, axis = 0)
     return img
@@ -60,7 +57,7 @@ input_tensor = K.concatenate([base_image,
 
 
 # VGG
-from keras.applications.vgg19 import VGG19
+#from keras.applications.vgg19 import VGG19
 from keras.applications.vgg16 import VGG16
 model = VGG16(include_top = False, weights = 'imagenet', input_tensor = input_tensor)
 #print(model.summary())
