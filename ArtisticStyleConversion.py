@@ -1,14 +1,6 @@
-# input images path
-#print('base image path : ')
-#base_image_path = input()
-#print('style image path : ')
-#style_image_path = input()
-#print('result prefix : ')
-#result_prefix = input()
-#print('Transform from ' + base_image_path + ' into style ' + style_image_path + ' and save as ' + result_prefix)
-
+# input image paths
 base_image_path = 'base/base1.jpg'
-style_image_path = 'style/style1.jpg'
+style_image_path = 'style/img2.jpg'
 result_prefix = 'res/res'
 
 from scipy.misc import imread, imresize
@@ -19,7 +11,7 @@ img_height = 400
 assert img_height == img_width, 'Due to the use of the Gram matrix, width and height must match.'
 
 def preprocess_image(image_path):
-	# read images and resize
+    # read images and resize
     img = imresize(imread(image_path, mode = 'RGB'), (img_width, img_height, 3))
     # RGB->BGR
     img = img[:, :, ::-1].astype(np.float64)
@@ -27,20 +19,19 @@ def preprocess_image(image_path):
     img[:, :, 0] -= 103.939
     img[:, :, 1] -= 116.779
     img[:, :, 2] -= 123.68
-	# add axis to use VGG
+    # add axis to use VGG
     img = np.expand_dims(img, axis = 0)
     return img
 
 def deprocess_image(x):
-	x[:, :, 0] += 103.939
-	x[:, :, 1] += 116.779
-	x[:, :, 2] += 123.68
-	# BGR->RGB
-	x = x[:, :, ::-1]
+    x[:, :, 0] += 103.939
+    x[:, :, 1] += 116.779
+    x[:, :, 2] += 123.68
+    # BGR->RGB
+    x = x[:, :, ::-1]
     # clip
-	x = np.clip(x, 0, 255).astype(np.uint8)
-	return x
-
+    x = np.clip(x, 0, 255).astype(np.uint8)
+    return x
 
 
 from keras import backend as K
@@ -100,11 +91,11 @@ loss = loss + content_weight * content_loss(base_image_features, combination_fea
 
 feature_layers = ['block1_conv1', 'block2_conv1', 'block3_conv1', 'block4_conv1', 'block5_conv1']
 for layer_name in feature_layers:
-	layer_features = outputs_dict[layer_name]
-	style_reference_features = layer_features[1, :, :, :]
-	combination_features = layer_features[2, :, :, :]
-	sl = style_loss(style_reference_features, combination_features)
-	loss += (style_weight / len(feature_layers)) * sl
+    layer_features = outputs_dict[layer_name]
+    style_reference_features = layer_features[1, :, :, :]
+    combination_features = layer_features[2, :, :, :]
+    sl = style_loss(style_reference_features, combination_features)
+    loss += (style_weight / len(feature_layers)) * sl
 
 loss += total_variation_weight * total_variation_loss(combination_image)
 
@@ -161,14 +152,14 @@ x[0, :, :, 2] -= 123.68
 
 # L-BFGS
 for i in range(10):
-    print('Start of iteration', i)
+    print('Start of iteration', i + 1)
     start_time = time.time()
     x, min_val, info = fmin_l_bfgs_b(evaluator.loss, x.flatten(),
                                      fprime = evaluator.grads, maxfun = 20)
     print('Current loss value:', min_val)
     
     img = deprocess_image(x.copy().reshape((img_width, img_height, 3)))
-    fname = result_prefix + '_at_iteration_%d.png' % i
+    fname = result_prefix + '_at_iteration_%d.png' % (i + 1)
     imsave(fname, img)
     end_time = time.time()
     print('Image saved as', fname)
