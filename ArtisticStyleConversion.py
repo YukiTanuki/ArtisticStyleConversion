@@ -1,18 +1,34 @@
-# input image paths
-base_image_path = 'base/base1.jpg'
-style_image_path = 'style/img2.jpg'
-result_prefix = 'res/res'
-
 from scipy.misc import imread, imresize
+from scipy.misc import imsave
+from scipy.optimize import fmin_l_bfgs_b
+from keras import backend as K
+from keras.applications.vgg16 import VGG16
+import time
+import os
+
 import numpy as np
+
+# input image paths
+base_image_path = 'base/eiffel.jpg'
+style_image_path = 'style/weeping_woman.jpg'
+result_dir = 'result'
+result_prefix = result_dir + '/res'
+
+total_variation_weight = 1e-3
+style_weight = 1.
+content_weight = 0.025
 
 img_width = 400
 img_height = 400
 assert img_height == img_width, 'Due to the use of the Gram matrix, width and height must match.'
 
+if not os.path.exists(result_dir):
+    os.mkdir(result_dir)
+
+
 def preprocess_image(image_path):
     # read images and resize
-    img = imresize(imread(image_path, mode = 'RGB'), (img_width, img_height, 3))
+    img = imresize(imread(image_path, mode='RGB'), (img_width, img_height, 3))
     # RGB->BGR
     img = img[:, :, ::-1].astype(np.float64)
     # make the averages zero to use Caffe-VGG
@@ -22,6 +38,7 @@ def preprocess_image(image_path):
     # add axis to use VGG
     img = np.expand_dims(img, axis = 0)
     return img
+
 
 def deprocess_image(x):
     x[:, :, 0] += 103.939
@@ -34,32 +51,21 @@ def deprocess_image(x):
     return x
 
 
-from keras import backend as K
-
-base_image = K.variable(preprocess_image(base_image_path)) # content
-style_image = K.variable(preprocess_image(style_image_path)) # style
-# placeholder(1x(width)x(height)x3)
+base_image = K.variable(preprocess_image(base_image_path))
+style_image = K.variable(preprocess_image(style_image_path))
 combination_image = K.placeholder((1, img_width, img_height, 3))
-# concatnate inputs
-input_tensor = K.concatenate([base_image,
-							  style_image,
-							  combination_image], axis = 0)
+input_tensor = K.concatenate([base_image, style_image, combination_image], axis = 0)
 
-
-
-# VGG
-#from keras.applications.vgg19 import VGG19
-from keras.applications.vgg16 import VGG16
-model = VGG16(include_top = False, weights = 'imagenet', input_tensor = input_tensor)
-#print(model.summary())
+model = VGG16(include_top=False, weights='imagenet', input_tensor=input_tensor)
 outputs_dict = dict([(layer.name, layer.output) for layer in model.layers])
-#print(outputs_dict)
+
 
 def gram_matrix(x):
     assert K.ndim(x) == 3
     features = K.batch_flatten(K.permute_dimensions(x, (2, 0, 1)))
     gram = K.dot(features - 1, K.transpose(features - 1))
     return gram
+
 
 def style_loss(style, combination):
     assert K.ndim(style) == 3
@@ -70,8 +76,10 @@ def style_loss(style, combination):
     size = img_width * img_height
     return K.sum(K.square(S - C)) / (4. * (channels ** 2) * (size ** 2))
 
+
 def content_loss(base, combination):
     return K.sum(K.square(combination - base))
+
 
 def total_variation_loss(x):
     assert K.ndim(x) == 4
@@ -79,9 +87,6 @@ def total_variation_loss(x):
     b = K.square(x[:, :img_width - 1, :img_height - 1, :] - x[:, :img_width - 1, 1:, :])
     return K.sum(K.pow(a + b, 1.25))
 
-total_variation_weight = 1e-3
-style_weight = 1.
-content_weight = 0.025
 
 loss = K.variable(0.)
 layer_features = outputs_dict['block5_conv2']
@@ -108,6 +113,7 @@ else:
     outputs.append(grads)
 f_outputs = K.function([combination_image], outputs)
 
+
 def eval_loss_and_grads(x):
     x = x.reshape((1, img_width, img_height, 3))
     outs = f_outputs([x])
@@ -117,6 +123,7 @@ def eval_loss_and_grads(x):
     else:
         grad_values = np.array(outs[1:]).flatten().astype(np.float64)
     return loss_value, grad_values
+
 
 class Evaluator(object):
     def __init__(self):
@@ -137,11 +144,8 @@ class Evaluator(object):
         self.grad_values = None
         return grad_values
 
-evaluator = Evaluator()
 
-from scipy.misc import imsave
-from scipy.optimize import fmin_l_bfgs_b
-import time
+evaluator = Evaluator()
 
 x = preprocess_image(base_image_path) # content
 #x = preprocess_image(style_image_path) # style
@@ -154,8 +158,7 @@ x[0, :, :, 2] -= 123.68
 for i in range(10):
     print('Start of iteration', i + 1)
     start_time = time.time()
-    x, min_val, info = fmin_l_bfgs_b(evaluator.loss, x.flatten(),
-                                     fprime = evaluator.grads, maxfun = 20)
+    x, min_val, info = fmin_l_bfgs_b(evaluator.loss, x.flatten(), fprime=evaluator.grads, maxfun=20)
     print('Current loss value:', min_val)
     
     img = deprocess_image(x.copy().reshape((img_width, img_height, 3)))
